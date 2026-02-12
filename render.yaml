@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: pothole-detection-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    # Render will set PORT env var automatically
+    # Your server already uses process.env.PORT
+    envVars:
+      - key: MONGO_URI
+        sync: false        # set this in the Render dashboard
+      - key: NODE_ENV
+        value: production
+

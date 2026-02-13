@@ -618,31 +618,48 @@
         async function loadHistory() {
             const tbody = document.getElementById('historyTableBody');
             try {
+                console.log('🔄 Loading history...');
                 const response = await fetch('/api/history');
-                const data = await response.json();
-
+                
+                console.log('📡 Response status:', response.status);
+                
                 if (!response.ok) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + (data.message || 'Error loading history') + '</td></tr>';
+                    const errorData = await response.json();
+                    console.error('❌ API Error:', errorData);
+                    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error: ${errorData.message || 'Unknown error'} (Status: ${response.status})</td></tr>`;
                     return;
                 }
+                
+                const data = await response.json();
+                console.log('📊 History data received:', data);
+
                 const potholes = Array.isArray(data) ? data : [];
 
                 if (potholes.length === 0) {
+                    console.log('📭 No potholes found');
                     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No history available</td></tr>';
                     updateStatistics([]);
                     return;
                 }
 
+                console.log(`✅ Found ${potholes.length} potholes`);
+
                 // Show latest 10 records in table
                 const latestPotholes = potholes.slice(0, 10);
 
-                tbody.innerHTML = latestPotholes.map(pothole => {
+                tbody.innerHTML = latestPotholes.map((pothole, index) => {
                     const date = new Date(pothole.created_at);
                     const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
                     const [lon, lat] = coords;
                     
+                    console.log(`📍 Pothole ${index + 1}:`, { 
+                        location_name: pothole.location_name, 
+                        severity: pothole.severity,
+                        coordinates: coords 
+                    });
+                    
                     return `
-                        <tr onclick="focusOnLocation(${lat}, ${lon}, '${pothole.location_name || 'Unknown'}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
+                        <tr onclick="focusOnLocation(${lat}, ${lon}, '${(pothole.location_name || 'Unknown').replace(/'/g, "\\'")}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
                             <td>${pothole.location_name || 'Unknown'}</td>
                             <td>${lat.toFixed(6)}, ${lon.toFixed(6)}</td>
                             <td><span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span></td>
@@ -655,10 +672,11 @@
 
                 // Update statistics using ALL data, not just latest 10
                 updateStatistics(potholes);
+                console.log('✅ History loaded successfully');
 
             } catch (error) {
                 console.error('❌ Error loading history:', error);
-                document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">Error loading history</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error loading history: ${error.message}</td></tr>`;
             }
         }
 
@@ -770,25 +788,44 @@
 
             // Create pie chart for severity distribution
             const pieCtx = document.getElementById('severityPieChart');
+            console.log('🔍 Pie chart canvas element:', pieCtx);
+            
             if (!pieCtx) {
-                console.error('Pie chart canvas not found');
+                console.error('❌ Pie chart canvas not found');
                 return;
             }
-            if (window.severityPieChart) window.severityPieChart.destroy();
+            
+            // Test canvas by drawing something simple
+            const testCtx = pieCtx.getContext('2d');
+            testCtx.fillStyle = '#ff6b6b';
+            testCtx.fillRect(10, 10, 50, 50);
+            console.log('✅ Canvas test - red rectangle drawn');
+            
+            if (window.severityPieChart) {
+                console.log('🗑️ Destroying existing pie chart');
+                window.severityPieChart.destroy();
+            }
             
             // Use actual counts from current data
             const currentHigh = high;
             const currentMedium = medium;
             const currentLow = low;
             
-            console.log('Pie chart data:', { currentHigh, currentMedium, currentLow });
+            console.log('📊 Pie chart data:', { currentHigh, currentMedium, currentLow });
             
             // Only create pie chart if there's data
             if (currentHigh === 0 && currentMedium === 0 && currentLow === 0) {
-                console.log('No data for pie chart');
+                console.log('⚠️ No data for pie chart');
+                // Clear canvas and show message
+                testCtx.clearRect(0, 0, pieCtx.width, pieCtx.height);
+                testCtx.fillStyle = '#666';
+                testCtx.font = '16px Arial';
+                testCtx.textAlign = 'center';
+                testCtx.fillText('No Data Available', pieCtx.width/2, pieCtx.height/2);
                 return;
             }
             
+            console.log('🎨 Creating new pie chart...');
             window.severityPieChart = new Chart(pieCtx, {
                 type: 'pie',
                 data: {
@@ -829,6 +866,8 @@
                     }
                 }
             });
+            
+            console.log('✅ Pie chart created successfully');
         }
 
         // Toggle auto refresh
@@ -854,6 +893,17 @@
 
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Page loaded, checking dependencies...');
+            
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('❌ Chart.js not loaded!');
+                alert('Chart.js library failed to load. Please check your internet connection.');
+                return;
+            } else {
+                console.log('✅ Chart.js loaded successfully');
+            }
+            
             initMap();
             loadLatestDetections();
             loadHistory();

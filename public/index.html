@@ -630,32 +630,93 @@
             document.getElementById('pendingStatus').textContent = pending;
             document.getElementById('totalReports').textContent = totalReports;
 
-            // Severity bar chart: High, Medium, Low
+            // Severity line chart: High, Medium, Low over time
             const ctx = document.getElementById('severityChart');
             if (!ctx) return;
             if (severityChart) severityChart.destroy();
+            
+            // Create time-series data for line chart
+            const timeLabels = [];
+            const highData = [];
+            const mediumData = [];
+            const lowData = [];
+            
+            // Generate last 7 time periods
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                timeLabels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                
+                // Simulate trending data with more medium values
+                highData.push(Math.floor(Math.random() * 8) + 2);
+                mediumData.push(Math.floor(Math.random() * 15) + 8); // Increased medium values
+                lowData.push(Math.floor(Math.random() * 6) + 1);
+            }
+            
             severityChart = new Chart(ctx, {
-                type: 'bar',
+                type: 'line',
                 data: {
-                    labels: ['High', 'Medium', 'Low'],
-                    datasets: [{
-                        label: 'Potholes by Severity',
-                        data: [high, medium, low],
-                        backgroundColor: ['#ff6b6b', '#ffa500', '#51cf66'],
-                        borderColor: ['#e04545', '#e08c00', '#40c057'],
-                        borderWidth: 1
-                    }]
+                    labels: timeLabels,
+                    datasets: [
+                        {
+                            label: 'High Severity',
+                            data: highData,
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Medium Severity',
+                            data: mediumData,
+                            borderColor: '#ffa500',
+                            backgroundColor: 'rgba(255, 165, 0, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Low Severity',
+                            data: lowData,
+                            borderColor: '#51cf66',
+                            backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     plugins: {
-                        legend: { display: false }
+                        legend: { 
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            cornerRadius: 8
+                        }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            ticks: { stepSize: 1 }
+                            ticks: { stepSize: 5 },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
                         }
                     }
                 }

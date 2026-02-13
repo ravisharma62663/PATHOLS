@@ -278,6 +278,19 @@
                 height: 250px;
             }
         }
+        
+        @media (max-width: 1024px) {
+            .chart-container {
+                height: 260px;
+            }
+        }
+        
+        /* Ensure pie chart is visible */
+        #severityPieChart {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
 </head>
 <body>
@@ -620,7 +633,7 @@
                     return;
                 }
 
-                // Show latest 10 records
+                // Show latest 10 records in table
                 const latestPotholes = potholes.slice(0, 10);
 
                 tbody.innerHTML = latestPotholes.map(pothole => {
@@ -640,8 +653,8 @@
                     `;
                 }).join('');
 
-                // Update statistics using latest 10 records
-                updateStatistics(latestPotholes);
+                // Update statistics using ALL data, not just latest 10
+                updateStatistics(potholes);
 
             } catch (error) {
                 console.error('❌ Error loading history:', error);
@@ -757,13 +770,24 @@
 
             // Create pie chart for severity distribution
             const pieCtx = document.getElementById('severityPieChart');
-            if (!pieCtx) return;
+            if (!pieCtx) {
+                console.error('Pie chart canvas not found');
+                return;
+            }
             if (window.severityPieChart) window.severityPieChart.destroy();
             
             // Use actual counts from current data
             const currentHigh = high;
             const currentMedium = medium;
             const currentLow = low;
+            
+            console.log('Pie chart data:', { currentHigh, currentMedium, currentLow });
+            
+            // Only create pie chart if there's data
+            if (currentHigh === 0 && currentMedium === 0 && currentLow === 0) {
+                console.log('No data for pie chart');
+                return;
+            }
             
             window.severityPieChart = new Chart(pieCtx, {
                 type: 'pie',
@@ -782,7 +806,13 @@
                     plugins: {
                         legend: {
                             display: true,
-                            position: 'bottom'
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
                         },
                         tooltip: {
                             backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -791,7 +821,7 @@
                             callbacks: {
                                 label: function(context) {
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                    const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
                                     return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
                                 }
                             }

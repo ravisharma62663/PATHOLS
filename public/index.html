@@ -370,7 +370,18 @@
         async function loadMapData() {
             try {
                 const response = await fetch('/api/map');
-                const geoJson = await response.json();
+                const data = await response.json();
+
+                if (!response.ok) {
+                    console.error('Map API error:', data.message || data);
+                    return;
+                }
+                if (!data.features || !Array.isArray(data.features)) {
+                    console.error('Map API: invalid format');
+                    return;
+                }
+
+                const geoJson = data;
 
                 // Clear existing markers
                 markers.forEach(marker => map.removeLayer(marker));
@@ -434,12 +445,17 @@
 
         // Load latest detections
         async function loadLatestDetections() {
+            const livePanel = document.getElementById('livePanel');
             try {
                 const response = await fetch('/api/history');
-                const potholes = await response.json();
+                const data = await response.json();
 
-                const livePanel = document.getElementById('livePanel');
-                
+                if (!response.ok) {
+                    livePanel.innerHTML = '<div class="empty-state">' + (data.message || 'Error loading detections') + '</div>';
+                    return;
+                }
+                const potholes = Array.isArray(data) ? data : [];
+
                 if (potholes.length === 0) {
                     livePanel.innerHTML = '<div class="empty-state">No detections yet</div>';
                     return;
@@ -457,9 +473,9 @@
                             <div class="detection-time">${date.toLocaleString()}</div>
                             <div class="detection-location">${pothole.location_name || 'Unknown Location'}</div>
                             <div class="detection-details">
-                                <span class="badge badge-severity-${pothole.severity.toLowerCase()}">${pothole.severity}</span>
-                                <span class="badge badge-status">${pothole.status}</span>
-                                <span style="color: #666;">Reports: ${pothole.report_count}</span>
+                                <span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span>
+                                <span class="badge badge-status">${pothole.status || 'Pending'}</span>
+                                <span style="color: #666;">Reports: ${pothole.report_count || 1}</span>
                             </div>
                         </div>
                     `;
@@ -467,18 +483,23 @@
 
             } catch (error) {
                 console.error('❌ Error loading detections:', error);
-                document.getElementById('livePanel').innerHTML = '<div class="empty-state">Error loading detections</div>';
+                livePanel.innerHTML = '<div class="empty-state">Error loading detections</div>';
             }
         }
 
         // Load history table
         async function loadHistory() {
+            const tbody = document.getElementById('historyTableBody');
             try {
                 const response = await fetch('/api/history');
-                const potholes = await response.json();
+                const data = await response.json();
 
-                const tbody = document.getElementById('historyTableBody');
-                
+                if (!response.ok) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + (data.message || 'Error loading history') + '</td></tr>';
+                    return;
+                }
+                const potholes = Array.isArray(data) ? data : [];
+
                 if (potholes.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No history available</td></tr>';
                     return;
@@ -486,15 +507,16 @@
 
                 tbody.innerHTML = potholes.map(pothole => {
                     const date = new Date(pothole.created_at);
-                    const [lon, lat] = pothole.location.coordinates;
+                    const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
+                    const [lon, lat] = coords;
                     
                     return `
                         <tr>
                             <td>${pothole.location_name || 'Unknown'}</td>
                             <td>${lat.toFixed(6)}, ${lon.toFixed(6)}</td>
-                            <td><span class="badge badge-severity-${pothole.severity.toLowerCase()}">${pothole.severity}</span></td>
-                            <td>${pothole.report_count}</td>
-                            <td><span class="badge badge-status">${pothole.status}</span></td>
+                            <td><span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span></td>
+                            <td>${pothole.report_count || 1}</td>
+                            <td><span class="badge badge-status">${pothole.status || 'Pending'}</span></td>
                             <td>${date.toLocaleString()}</td>
                         </tr>
                     `;

@@ -19,7 +19,13 @@ app.use(express.static("public"));
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.log("❌ DB Error:", err));
+  .catch((err) => {
+    console.log("❌ DB Error:", err.message);
+    console.log("🔄 Using in-memory storage as fallback...");
+    
+    // Fallback to in-memory storage
+    global.potholes = [];
+  });
 
 /* ==========================================
    POST API - Add Pothole
@@ -214,12 +220,18 @@ app.post("/api/pothole", async (req, res) => {
 
 app.get("/api/history", async (req, res) => {
   try {
+    // Use in-memory fallback if MongoDB is not connected
     if (mongoose.connection.readyState !== 1) {
+      if (global.potholes) {
+        console.log("📊 Using in-memory data");
+        return res.json(global.potholes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      }
       return res.status(503).json({
         message: "Database not connected",
-        hint: "Check MONGO_URI in Render Environment. Use appName=Cluster0 and add /potholeDB before ?"
+        hint: "Check MONGO_URI in .env file"
       });
     }
+    
     const potholes = await Pothole.find()
       .sort({ created_at: -1 })
       .select("-__v");

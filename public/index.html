@@ -451,6 +451,66 @@
             }
         }
 
+        // Focus on specific location and show popup
+        function focusOnLocation(lat, lon, locationName, potholeData) {
+            // Center map on the location with a closer zoom
+            map.setView([lat, lon], 16);
+            
+            // Find if marker already exists for this location
+            let targetMarker = markers.find(marker => {
+                const markerLatLng = marker.getLatLng();
+                return Math.abs(markerLatLng.lat - lat) < 0.0001 && Math.abs(markerLatLng.lng - lon) < 0.0001;
+            });
+            
+            if (targetMarker) {
+                // Open the popup for existing marker
+                targetMarker.openPopup();
+            } else {
+                // Create a temporary marker if not found
+                const markerColor = '#51cf66'; // Default green
+                if (potholeData.severity === 'Medium') markerColor = '#ffa500';
+                if (potholeData.severity === 'High') markerColor = '#ff6b6b';
+                
+                const icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+                
+                const tempMarker = L.marker([lat, lon], { icon: icon }).addTo(map);
+                
+                // Create popup content
+                const popupContent = `
+                    <div class="popup-content">
+                        <div class="popup-title">${locationName}</div>
+                        <div class="popup-detail"><strong>Severity:</strong> <span class="badge badge-severity-${(potholeData.severity || 'Medium').toLowerCase()}">${potholeData.severity || 'Medium'}</span></div>
+                        <div class="popup-detail"><strong>Report Count:</strong> ${potholeData.report_count || 1}</div>
+                        <div class="popup-detail"><strong>Status:</strong> <span class="badge badge-status">${potholeData.status || 'Pending'}</span></div>
+                        ${potholeData.accel_z ? `<div class="popup-detail"><strong>Accel Z:</strong> ${potholeData.accel_z.toFixed(2)} m/s²</div>` : ''}
+                        ${potholeData.gyro_y ? `<div class="popup-detail"><strong>Gyro Y:</strong> ${potholeData.gyro_y.toFixed(3)} rad/s</div>` : ''}
+                        ${potholeData.speed ? `<div class="popup-detail"><strong>Speed:</strong> ${potholeData.speed.toFixed(1)} km/h</div>` : ''}
+                        <div class="popup-detail"><strong>Detected:</strong> ${new Date(potholeData.created_at).toLocaleString()}</div>
+                    </div>
+                `;
+                
+                tempMarker.bindPopup(popupContent).openPopup();
+                
+                // Remove temporary marker after popup is closed
+                tempMarker.on('popupclose', function() {
+                    map.removeLayer(tempMarker);
+                });
+            }
+            
+            // Add visual feedback - pulse effect on map container
+            const mapContainer = document.getElementById('map');
+            mapContainer.style.transition = 'box-shadow 0.3s';
+            mapContainer.style.boxShadow = '0 0 20px rgba(13, 148, 136, 0.5)';
+            setTimeout(() => {
+                mapContainer.style.boxShadow = '';
+            }, 1000);
+        }
+
         // Center map on all markers
         function centerMap() {
             if (markers.length === 0) {
@@ -486,9 +546,11 @@
                 livePanel.innerHTML = latest.map((pothole, index) => {
                     const isNew = index === 0;
                     const date = new Date(pothole.created_at);
+                    const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
+                    const [lon, lat] = coords;
                     
                     return `
-                        <div class="detection-item ${isNew ? 'new' : ''}">
+                        <div class="detection-item ${isNew ? 'new' : ''}" onclick="focusOnLocation(${lat}, ${lon}, '${pothole.location_name || 'Unknown Location'}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
                             <div class="detection-time">${date.toLocaleString()}</div>
                             <div class="detection-location">${pothole.location_name || 'Unknown Location'}</div>
                             <div class="detection-details">
@@ -525,13 +587,16 @@
                     return;
                 }
 
-                tbody.innerHTML = potholes.map(pothole => {
+                // Show latest 10 records
+                const latestPotholes = potholes.slice(0, 10);
+
+                tbody.innerHTML = latestPotholes.map(pothole => {
                     const date = new Date(pothole.created_at);
                     const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
                     const [lon, lat] = coords;
                     
                     return `
-                        <tr>
+                        <tr onclick="focusOnLocation(${lat}, ${lon}, '${pothole.location_name || 'Unknown'}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
                             <td>${pothole.location_name || 'Unknown'}</td>
                             <td>${lat.toFixed(6)}, ${lon.toFixed(6)}</td>
                             <td><span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span></td>
@@ -542,8 +607,8 @@
                     `;
                 }).join('');
 
-                // Update statistics
-                updateStatistics(potholes);
+                // Update statistics using latest 10 records
+                updateStatistics(latestPotholes);
 
             } catch (error) {
                 console.error('❌ Error loading history:', error);

@@ -268,6 +268,16 @@
         #severityChart {
             max-height: 280px;
         }
+        #severityPieChart {
+            max-height: 280px;
+        }
+        
+        /* Responsive charts for mobile */
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 250px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -300,8 +310,13 @@
         <!-- Severity Graph -->
         <div class="card">
             <h2>Severity Overview</h2>
-            <div class="chart-container">
-                <canvas id="severityChart"></canvas>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="chart-container">
+                    <canvas id="severityChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <canvas id="severityPieChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -453,18 +468,34 @@
 
         // Focus on specific location and show popup
         function focusOnLocation(lat, lon, locationName, potholeData) {
+            console.log('Focusing on location:', { lat, lon, locationName, potholeData });
+            
+            // Ensure coordinates are valid numbers
+            let latitude = parseFloat(lat);
+            let longitude = parseFloat(lon);
+            
+            // If coordinates are invalid or [0,0], use Bangalore coordinates as fallback
+            if (isNaN(latitude) || isNaN(longitude) || (latitude === 0 && longitude === 0)) {
+                console.warn('Invalid or zero coordinates, using Bangalore fallback:', lat, lon);
+                latitude = 12.9716; // Bangalore latitude
+                longitude = 77.5946; // Bangalore longitude
+            }
+            
+            console.log('Final coordinates:', { latitude, longitude });
+            
             // Center map on the location with a closer zoom
-            map.setView([lat, lon], 16);
+            map.setView([latitude, longitude], 16);
             
             // Find if marker already exists for this location
             let targetMarker = markers.find(marker => {
                 const markerLatLng = marker.getLatLng();
-                return Math.abs(markerLatLng.lat - lat) < 0.0001 && Math.abs(markerLatLng.lng - lon) < 0.0001;
+                return Math.abs(markerLatLng.lat - latitude) < 0.0001 && Math.abs(markerLatLng.lng - longitude) < 0.0001;
             });
             
             if (targetMarker) {
                 // Open the popup for existing marker
                 targetMarker.openPopup();
+                console.log('Found existing marker, opening popup');
             } else {
                 // Create a temporary marker if not found
                 const markerColor = '#51cf66'; // Default green
@@ -473,12 +504,12 @@
                 
                 const icon = L.divIcon({
                     className: 'custom-marker',
-                    html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+                    html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>`,
                     iconSize: [16, 16],
                     iconAnchor: [8, 8]
                 });
                 
-                const tempMarker = L.marker([lat, lon], { icon: icon }).addTo(map);
+                const tempMarker = L.marker([latitude, longitude], { icon: icon }).addTo(map);
                 
                 // Create popup content
                 const popupContent = `
@@ -491,10 +522,12 @@
                         ${potholeData.gyro_y ? `<div class="popup-detail"><strong>Gyro Y:</strong> ${potholeData.gyro_y.toFixed(3)} rad/s</div>` : ''}
                         ${potholeData.speed ? `<div class="popup-detail"><strong>Speed:</strong> ${potholeData.speed.toFixed(1)} km/h</div>` : ''}
                         <div class="popup-detail"><strong>Detected:</strong> ${new Date(potholeData.created_at).toLocaleString()}</div>
+                        <div class="popup-detail"><strong>Coordinates:</strong> ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</div>
                     </div>
                 `;
                 
                 tempMarker.bindPopup(popupContent).openPopup();
+                console.log('Created temporary marker at:', latitude, longitude);
                 
                 // Remove temporary marker after popup is closed
                 tempMarker.on('popupclose', function() {
@@ -716,6 +749,51 @@
                         x: {
                             grid: {
                                 color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Create pie chart for severity distribution
+            const pieCtx = document.getElementById('severityPieChart');
+            if (!pieCtx) return;
+            if (window.severityPieChart) window.severityPieChart.destroy();
+            
+            // Use actual counts from current data
+            const currentHigh = high;
+            const currentMedium = medium;
+            const currentLow = low;
+            
+            window.severityPieChart = new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['High Severity', 'Medium Severity', 'Low Severity'],
+                    datasets: [{
+                        data: [currentHigh, currentMedium, currentLow],
+                        backgroundColor: ['#ff6b6b', '#ffa500', '#51cf66'],
+                        borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                    return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                                }
                             }
                         }
                     }

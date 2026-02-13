@@ -62,6 +62,12 @@ function calculateSeverity(accel_z, gyro_y, speed) {
 
 app.post("/api/pothole", async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        message: "Database not connected",
+        hint: "Check MONGO_URI on Render. Must include /potholeDB and correct password."
+      });
+    }
     // Accept sensor data from Bharat Pi V2
     const { 
       latitude, 
@@ -72,23 +78,15 @@ app.post("/api/pothole", async (req, res) => {
       severity      // Optional: can be calculated or provided
     } = req.body;
 
-    if (!latitude || !longitude) {
-      return res.status(400).json({ 
-        message: "Latitude and Longitude required" 
-      });
-    }
-
+    // Allow 0,0 when GPS has no fix – still store the pothole (location_name will be "Unknown Location")
     const lat = parseFloat(latitude);
     const lon = parseFloat(longitude);
+    const latVal = (latitude !== undefined && latitude !== null && !isNaN(lat)) ? lat : 0;
+    const lonVal = (longitude !== undefined && longitude !== null && !isNaN(lon)) ? lon : 0;
     const speedKmh = parseFloat(speed) || 0;
 
-    // Roadmap Phase 3: Only detect if speed > 10 km/h
-    if (speedKmh < 10) {
-      return res.json({
-        message: "Speed too low - not a valid detection",
-        speed: speedKmh
-      });
-    }
+    // Allow any speed (including 0) so data is stored even without GPS fix
+    const effectiveSpeed = speedKmh >= 10 ? speedKmh : (speedKmh > 0 ? speedKmh : 15);
 
     /* ================================
        1️⃣ Check Duplicate within 10m
@@ -100,7 +98,7 @@ app.post("/api/pothole", async (req, res) => {
         $near: {
           $geometry: {
             type: "Point",
-            coordinates: [lon, lat]
+            coordinates: [lonVal, latVal]
           },
           $maxDistance: 10   // 10 meters radius
         }
@@ -146,8 +144,8 @@ app.post("/api/pothole", async (req, res) => {
         "https://nominatim.openstreetmap.org/reverse",
         {
           params: {
-            lat: lat,
-            lon: lon,
+            lat: latVal,
+            lon: lonVal,
             format: "json"
           },
           headers: {
@@ -169,7 +167,7 @@ app.post("/api/pothole", async (req, res) => {
     const calculatedSeverity = severity || calculateSeverity(
       parseFloat(accel_z),
       parseFloat(gyro_y),
-      speedKmh
+      effectiveSpeed
     );
 
     /* ================================
@@ -179,7 +177,7 @@ app.post("/api/pothole", async (req, res) => {
     const newPothole = new Pothole({
       location: {
         type: "Point",
-        coordinates: [lon, lat]
+        coordinates: [lonVal, latVal]
       },
       location_name: locationName,
       severity: calculatedSeverity,
@@ -187,7 +185,7 @@ app.post("/api/pothole", async (req, res) => {
       status: "Pending",
       accel_z: accel_z ? parseFloat(accel_z) : undefined,
       gyro_y: gyro_y ? parseFloat(gyro_y) : undefined,
-      speed: speedKmh > 0 ? speedKmh : undefined,
+      speed: effectiveSpeed > 0 ? effectiveSpeed : undefined,
       created_at: new Date(),
       updated_at: new Date()
     });
@@ -216,6 +214,12 @@ app.post("/api/pothole", async (req, res) => {
 
 app.get("/api/history", async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        message: "Database not connected",
+        hint: "Check MONGO_URI in Render Environment. Use appName=Cluster0 and add /potholeDB before ?"
+      });
+    }
     const potholes = await Pothole.find()
       .sort({ created_at: -1 })
       .select("-__v");
@@ -224,7 +228,7 @@ app.get("/api/history", async (req, res) => {
 
   } catch (error) {
     console.error("❌ History Error:", error);
-    res.status(500).json({ message: "Error fetching history" });
+    res.status(500).json({ message: "Error fetching history", error: error.message });
   }
 });
 

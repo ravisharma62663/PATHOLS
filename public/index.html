@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚧 AI-Based Smart Pothole Detection System</title>
+    <title>AI-Based Smart Pothole Detection System</title>
     
     <!-- Leaflet.js CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -17,7 +17,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0f766e 0%, #134e4a 50%, #1e293b 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -69,7 +69,7 @@
             color: #333;
             margin-bottom: 15px;
             font-size: 20px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid #0d9488;
             padding-bottom: 10px;
         }
 
@@ -92,7 +92,7 @@
             padding: 15px;
             margin-bottom: 10px;
             border-radius: 8px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #0d9488;
         }
 
         .detection-item.new {
@@ -160,7 +160,7 @@
         }
 
         .history-table th {
-            background: #667eea;
+            background: #0d9488;
             color: white;
             padding: 12px;
             text-align: left;
@@ -196,7 +196,7 @@
         .stat-value {
             font-size: 32px;
             font-weight: bold;
-            color: #667eea;
+            color: #0d9488;
             margin-bottom: 5px;
         }
 
@@ -217,7 +217,7 @@
             padding: 10px 20px;
             border: none;
             border-radius: 5px;
-            background: #667eea;
+            background: #0d9488;
             color: white;
             cursor: pointer;
             font-size: 14px;
@@ -225,7 +225,7 @@
         }
 
         button:hover {
-            background: #5568d3;
+            background: #0f766e;
         }
 
         button:active {
@@ -259,12 +259,21 @@
             margin: 5px 0;
             font-size: 13px;
         }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+            width: 100%;
+        }
+        #severityChart {
+            max-height: 280px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚧 AI-Based Smart Pothole Detection System</h1>
+            <h1>AI-Based Smart Pothole Detection System</h1>
             <p class="subtitle">Real-time monitoring dashboard with map visualization and detection history</p>
         </header>
 
@@ -288,24 +297,32 @@
             </div>
         </div>
 
+        <!-- Severity Graph -->
+        <div class="card">
+            <h2>Severity Overview</h2>
+            <div class="chart-container">
+                <canvas id="severityChart"></canvas>
+            </div>
+        </div>
+
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
             <!-- Map View -->
             <div class="card">
-                <h2>📍 Map View</h2>
+                <h2>Map View</h2>
                 <div class="controls">
-                    <button onclick="loadMapData()">🔄 Refresh Map</button>
-                    <button onclick="centerMap()">🎯 Center Map</button>
+                    <button onclick="loadMapData()">Refresh Map</button>
+                    <button onclick="centerMap()">Center Map</button>
                 </div>
                 <div id="map"></div>
             </div>
 
             <!-- Live Detection Panel -->
             <div class="card">
-                <h2>🔴 Live Detection Panel</h2>
+                <h2>Live Detection Panel</h2>
                 <div class="controls">
-                    <button onclick="loadLatestDetections()">🔄 Refresh</button>
-                    <button onclick="toggleAutoRefresh()" id="autoRefreshBtn">▶️ Auto Refresh: OFF</button>
+                    <button onclick="loadLatestDetections()">Refresh</button>
+                    <button onclick="toggleAutoRefresh()" id="autoRefreshBtn">Auto Refresh: OFF</button>
                 </div>
                 <div class="live-panel" id="livePanel">
                     <div class="loading">Loading latest detections...</div>
@@ -315,9 +332,9 @@
 
         <!-- History Table -->
         <div class="card">
-            <h2>📊 Detection History</h2>
+            <h2>Detection History</h2>
             <div class="controls">
-                <button onclick="loadHistory()">🔄 Refresh History</button>
+                <button onclick="loadHistory()">Refresh History</button>
             </div>
             <div style="overflow-x: auto;">
                 <table class="history-table">
@@ -343,11 +360,13 @@
 
     <!-- Leaflet.js JavaScript -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+    <!-- Chart.js for severity graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         // Global variables
         let map;
         let markers = [];
+        let severityChart = null;
         let autoRefreshInterval = null;
         let autoRefreshEnabled = false;
 
@@ -397,12 +416,12 @@
                     if (props.severity === 'Medium') markerColor = '#ffa500'; // Medium - Orange
                     if (props.severity === 'High') markerColor = '#ff6b6b'; // High - Red
 
-                    // Create custom icon
+                    // Simple circle marker (no pin/icon)
                     const icon = L.divIcon({
                         className: 'custom-marker',
-                        html: `<div style="background-color: ${markerColor}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
+                        html: `<div style="background-color: ${markerColor}; width: 14px; height: 14px; border-radius: 50%;"></div>`,
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7]
                     });
 
                     // Create marker
@@ -411,7 +430,7 @@
                     // Create popup content
                     const popupContent = `
                         <div class="popup-content">
-                            <div class="popup-title">📍 ${props.location_name || 'Unknown Location'}</div>
+                            <div class="popup-title">${props.location_name || 'Unknown Location'}</div>
                             <div class="popup-detail"><strong>Severity:</strong> <span class="badge badge-severity-${props.severity.toLowerCase()}">${props.severity}</span></div>
                             <div class="popup-detail"><strong>Report Count:</strong> ${props.report_count}</div>
                             <div class="popup-detail"><strong>Status:</strong> <span class="badge badge-status">${props.status}</span></div>
@@ -502,6 +521,7 @@
 
                 if (potholes.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No history available</td></tr>';
+                    updateStatistics([]);
                     return;
                 }
 
@@ -531,17 +551,50 @@
             }
         }
 
-        // Update statistics
+        // Update statistics and severity graph
         function updateStatistics(potholes) {
             const total = potholes.length;
-            const high = potholes.filter(p => p.severity === 'High').length;
+            const high = potholes.filter(p => (p.severity || '').toLowerCase() === 'high').length;
+            const medium = potholes.filter(p => (p.severity || '').toLowerCase() === 'medium').length;
+            const low = potholes.filter(p => (p.severity || '').toLowerCase() === 'low').length;
             const pending = potholes.filter(p => p.status === 'Pending').length;
-            const totalReports = potholes.reduce((sum, p) => sum + p.report_count, 0);
+            const totalReports = potholes.reduce((sum, p) => sum + (p.report_count || 1), 0);
 
             document.getElementById('totalPotholes').textContent = total;
             document.getElementById('highSeverity').textContent = high;
             document.getElementById('pendingStatus').textContent = pending;
             document.getElementById('totalReports').textContent = totalReports;
+
+            // Severity bar chart: High, Medium, Low
+            const ctx = document.getElementById('severityChart');
+            if (!ctx) return;
+            if (severityChart) severityChart.destroy();
+            severityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['High', 'Medium', 'Low'],
+                    datasets: [{
+                        label: 'Potholes by Severity',
+                        data: [high, medium, low],
+                        backgroundColor: ['#ff6b6b', '#ffa500', '#51cf66'],
+                        borderColor: ['#e04545', '#e08c00', '#40c057'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        }
+                    }
+                }
+            });
         }
 
         // Toggle auto refresh
@@ -550,14 +603,14 @@
             const btn = document.getElementById('autoRefreshBtn');
             
             if (autoRefreshEnabled) {
-                btn.textContent = '⏸️ Auto Refresh: ON';
+                btn.textContent = 'Auto Refresh: ON';
                 autoRefreshInterval = setInterval(() => {
                     loadMapData();
                     loadLatestDetections();
                     loadHistory();
                 }, 5000); // Refresh every 5 seconds
             } else {
-                btn.textContent = '▶️ Auto Refresh: OFF';
+                btn.textContent = 'Auto Refresh: OFF';
                 if (autoRefreshInterval) {
                     clearInterval(autoRefreshInterval);
                     autoRefreshInterval = null;

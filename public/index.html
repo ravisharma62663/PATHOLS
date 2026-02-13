@@ -572,11 +572,45 @@
         async function loadLatestDetections() {
             const livePanel = document.getElementById('livePanel');
             try {
-                console.log('⚠️ Detection API is disabled');
-                livePanel.innerHTML = '<div class="empty-state">Detection panel is disabled</div>';
+                const response = await fetch('/api/history');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    livePanel.innerHTML = '<div class="empty-state">' + (data.message || 'Error loading detections') + '</div>';
+                    return;
+                }
+                const potholes = Array.isArray(data) ? data : [];
+
+                if (potholes.length === 0) {
+                    livePanel.innerHTML = '<div class="empty-state">No detections yet</div>';
+                    return;
+                }
+
+                // Show latest 10 detections
+                const latest = potholes.slice(0, 10);
+                
+                livePanel.innerHTML = latest.map((pothole, index) => {
+                    const isNew = index === 0;
+                    const date = new Date(pothole.created_at);
+                    const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
+                    const [lon, lat] = coords;
+                    
+                    return `
+                        <div class="detection-item ${isNew ? 'new' : ''}" onclick="focusOnLocation(${lat}, ${lon}, '${pothole.location_name || 'Unknown Location'}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
+                            <div class="detection-time">${date.toLocaleString()}</div>
+                            <div class="detection-location">${pothole.location_name || 'Unknown Location'}</div>
+                            <div class="detection-details">
+                                <span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span>
+                                <span class="badge badge-status">${pothole.status || 'Pending'}</span>
+                                <span style="color: #666;">Reports: ${pothole.report_count || 1}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
             } catch (error) {
                 console.error('❌ Error loading detections:', error);
-                livePanel.innerHTML = '<div class="empty-state">Detection panel is disabled</div>';
+                livePanel.innerHTML = '<div class="empty-state">Error loading detections</div>';
             }
         }
 
@@ -584,12 +618,65 @@
         async function loadHistory() {
             const tbody = document.getElementById('historyTableBody');
             try {
-                console.log('⚠️ History API is disabled');
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Detection history is disabled</td></tr>';
-                updateStatistics([]);
+                console.log('🔄 Loading history...');
+                const response = await fetch('/api/history');
+                
+                console.log('📡 Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('❌ API Error:', errorData);
+                    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error: ${errorData.message || 'Unknown error'} (Status: ${response.status})</td></tr>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('📊 History data received:', data);
+
+                const potholes = Array.isArray(data) ? data : [];
+
+                if (potholes.length === 0) {
+                    console.log('📭 No potholes found');
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No history available</td></tr>';
+                    updateStatistics([]);
+                    return;
+                }
+
+                console.log(`✅ Found ${potholes.length} potholes`);
+
+                // Show latest 10 records in table
+                const latestPotholes = potholes.slice(0, 10);
+
+                tbody.innerHTML = latestPotholes.map((pothole, index) => {
+                    const date = new Date(pothole.created_at);
+                    const coords = pothole.location && pothole.location.coordinates ? pothole.location.coordinates : [0, 0];
+                    const [lon, lat] = coords;
+                    
+                    console.log(`📍 Pothole ${index + 1}:`, { 
+                        location_name: pothole.location_name, 
+                        severity: pothole.severity,
+                        coordinates: coords 
+                    });
+                    
+                    return `
+                        <tr onclick="focusOnLocation(${lat}, ${lon}, '${(pothole.location_name || 'Unknown').replace(/'/g, "\\'")}', ${JSON.stringify(pothole).replace(/'/g, "\\'")})" style="cursor: pointer;">
+                            <td>${pothole.location_name || 'Unknown'}</td>
+                            <td>${lat.toFixed(6)}, ${lon.toFixed(6)}</td>
+                            <td><span class="badge badge-severity-${(pothole.severity || 'Medium').toLowerCase()}">${pothole.severity || 'Medium'}</span></td>
+                            <td>${pothole.report_count || 1}</td>
+                            <td><span class="badge badge-status">${pothole.status || 'Pending'}</span></td>
+                            <td>${date.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // Update statistics using ALL data, not just latest 10
+                updateStatistics(potholes);
+                console.log('✅ History loaded successfully');
+
             } catch (error) {
-                console.error('❌ Error:', error);
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Detection history is disabled</td></tr>';
+                console.error('❌ Error loading history:', error);
+                tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error loading history: ${error.message}</td></tr>`;
             }
         }
 
